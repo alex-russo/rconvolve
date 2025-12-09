@@ -1157,6 +1157,122 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_ir_empty_inputs() {
+        let input: Vec<f32> = vec![];
+        let ir = vec![0.5];
+        assert_eq!(apply_ir(&input, &ir), Err(AudioError::InsufficientData));
+        assert_eq!(apply_ir(&[1.0], &[]), Err(AudioError::InsufficientData));
+    }
+
+    #[test]
+    fn test_partitioned_new_empty_ir() {
+        let ir: Vec<f32> = vec![];
+        let block_size = 4;
+        let result = PartitionedConvolution::new(ir, block_size, None);
+        assert!(matches!(result, Err(AudioError::InsufficientData)));
+    }
+
+    #[test]
+    fn test_partitioned_process_block_size_mismatch() {
+        let ir = vec![1.0, 0.5];
+        let block_size = 4;
+        let mut partitioned =
+            PartitionedConvolution::new(ir, block_size, None).expect("should construct");
+        let input_wrong = vec![1.0, 0.0, 0.0]; // len 3 instead of 4
+        let result = partitioned.process_block(&input_wrong);
+        assert!(matches!(result, Err(AudioError::BufferSizeMismatch)));
+    }
+
+    #[test]
+    fn test_stereo_process_interleaved_mismatch() {
+        let ir_left = vec![1.0, 0.5];
+        let ir_right = vec![0.8, 0.4];
+        let block_size = 4;
+        let mut stereo = StereoConvolution::new(ir_left, ir_right, block_size).unwrap();
+        let interleaved_wrong = vec![0.0; block_size * 2 - 1]; // wrong length
+        let result = stereo.process_interleaved(&interleaved_wrong);
+        assert!(matches!(result, Err(AudioError::BufferSizeMismatch)));
+    }
+
+    #[test]
+    fn test_true_stereo_process_interleaved_mismatch() {
+        let ir_ll = vec![1.0];
+        let ir_lr = vec![0.3];
+        let ir_rl = vec![0.2];
+        let ir_rr = vec![1.0];
+        let block_size = 4;
+        let mut proc =
+            TrueStereoConvolution::new(ir_ll, ir_lr, ir_rl, ir_rr, block_size).unwrap();
+        let interleaved_wrong = vec![0.0; block_size * 2 - 1];
+        let result = proc.process_interleaved(&interleaved_wrong);
+        assert!(matches!(result, Err(AudioError::BufferSizeMismatch)));
+    }
+
+    #[test]
+    fn test_block_size_getters() {
+        let ir = vec![1.0, 0.5];
+        let block_size = 4;
+        let partitioned = PartitionedConvolution::new(ir.clone(), block_size, None).unwrap();
+        assert_eq!(partitioned.block_size, block_size);
+
+        let stereo = StereoConvolution::new(ir.clone(), ir.clone(), block_size).unwrap();
+        assert_eq!(stereo.block_size(), block_size);
+
+        let true_stereo =
+            TrueStereoConvolution::from_mono_with_spread(ir.clone(), block_size, 0.5).unwrap();
+        assert_eq!(true_stereo.block_size(), block_size);
+    }
+
+    #[test]
+    fn test_fft_convolve_empty_inputs() {
+        assert!(matches!(
+            fft_convolve(&[], &[1.0]),
+            Err(AudioError::InsufficientData)
+        ));
+        assert!(matches!(
+            fft_convolve(&[1.0], &[]),
+            Err(AudioError::InsufficientData)
+        ));
+    }
+
+    #[test]
+    fn test_time_convolve_empty_inputs() {
+        assert!(matches!(
+            time_convolve(&[], &[1.0]),
+            Err(AudioError::InsufficientData)
+        ));
+        assert!(matches!(
+            time_convolve(&[1.0], &[]),
+            Err(AudioError::InsufficientData)
+        ));
+    }
+
+    #[test]
+    fn test_stereo_process_interleaved_success() {
+        let ir_left = vec![1.0, 0.0];
+        let ir_right = vec![1.0, 0.0];
+        let block_size = 2;
+        let mut stereo = StereoConvolution::new(ir_left, ir_right, block_size).unwrap();
+        let interleaved_input = vec![1.0, 0.5, 0.0, 0.0]; // L0, R0, L1, R1
+        let output = stereo.process_interleaved(&interleaved_input).unwrap();
+        assert_eq!(output.len(), block_size * 2);
+    }
+
+    #[test]
+    fn test_true_stereo_process_interleaved_success() {
+        let ir_ll = vec![1.0];
+        let ir_lr = vec![0.0];
+        let ir_rl = vec![0.0];
+        let ir_rr = vec![1.0];
+        let block_size = 2;
+        let mut proc =
+            TrueStereoConvolution::new(ir_ll, ir_lr, ir_rl, ir_rr, block_size).unwrap();
+        let interleaved = vec![1.0, 0.5, 0.0, 0.0]; // L0, R0, L1, R1
+        let output = proc.process_interleaved(&interleaved).unwrap();
+        assert_eq!(output.len(), block_size * 2);
+    }
+
+    #[test]
     fn test_apply_ir_with_wet_on_tail() {
         let input = vec![1.0, 0.0];
         let ir = vec![0.5, 0.25, 0.125];

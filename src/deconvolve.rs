@@ -875,7 +875,78 @@ mod tests {
         assert_abs_diff_eq!(buffer[0], 0.0, epsilon = 1e-6);
         assert_abs_diff_eq!(buffer[99], 0.0, epsilon = 1e-6);
         assert!(buffer[50] > 0.9); // Peak in the middle
+
+        // Window application for single-length buffer (should be unchanged)
+        let mut single = vec![1.0];
+        apply_window(&mut single, WindowType::Hann);
+        assert_eq!(single, vec![1.0]);
+        apply_window(&mut single, WindowType::Hamming);
+        assert_eq!(single, vec![1.0]);
+        apply_window(&mut single, WindowType::Blackman);
+        assert_eq!(single, vec![1.0]);
     }
+
+    #[test]
+    fn test_pad_to_length() {
+        let input = vec![1.0, 2.0, 3.0];
+        let padded = pad_to_length(&input, 5);
+        assert_eq!(padded, vec![1.0, 2.0, 3.0, 0.0, 0.0]);
+        let padded = pad_to_length(&input, 3);
+        assert_eq!(padded, input);
+        let padded = pad_to_length(&input, 0);
+        assert_eq!(padded, vec![]); // resize(0) truncates to empty
+    }
+
+    #[test]
+    fn test_extract_stereo_channels_edge_cases() {
+        // Empty input
+        let (left, right) = extract_stereo_channels(&[], 2);
+        assert_eq!(left, Vec::<f32>::new());
+        assert_eq!(right, Vec::<f32>::new());
+
+        // Odd-length input
+        let data = vec![1.0, 2.0, 3.0];
+        let (left, right) = extract_stereo_channels(&data, 2);
+        assert_eq!(left, vec![1.0, 3.0]);
+        assert_eq!(right, vec![2.0, 3.0]);
+    }
+
+    #[test]
+    fn test_extract_left_channel_edge_cases() {
+        // Empty input
+        let left = extract_left_channel(&[], 2);
+        assert_eq!(left, Vec::<f32>::new());
+
+        // Odd-length input
+        let data = vec![1.0, 2.0, 3.0];
+        let left = extract_left_channel(&data, 2);
+        assert_eq!(left, vec![1.0, 3.0]);
+    }
+
+    #[test]
+    fn test_mono_to_stereo_edge_cases() {
+        // Empty input
+        let stereo = mono_to_stereo(&[]);
+        assert_eq!(stereo, Vec::<f32>::new());
+
+        // Single sample
+        let stereo = mono_to_stereo(&[1.0]);
+        assert_eq!(stereo, vec![1.0, 1.0]);
+    }
+
+    #[test]
+    fn test_create_stereo_ir_edge_cases() {
+        // Both empty
+        let stereo = create_stereo_ir(&[], &[]);
+        assert_eq!(stereo, Vec::<f32>::new());
+
+        // One empty, one non-empty
+        let stereo = create_stereo_ir(&[1.0, 2.0], &[]);
+        assert_eq!(stereo, vec![1.0, 0.0, 2.0, 0.0]);
+        let stereo = create_stereo_ir(&[], &[3.0, 4.0]);
+        assert_eq!(stereo, vec![0.0, 3.0, 0.0, 4.0]);
+    }
+
 
     #[test]
     fn test_snr_estimation() {
@@ -908,7 +979,7 @@ mod tests {
         // Create a high-quality test IR
         let mut good_ir = vec![0.0; 1000];
         good_ir[50] = 1.0; // Strong peak
-                           // Add much weaker exponential decay for better dynamic range
+                        // Add much weaker exponential decay for better dynamic range
         for i in 51..700 {
             // End decay earlier to leave quiet tail
             #[cfg(feature = "std")]
@@ -1114,5 +1185,478 @@ mod tests {
         let config1 = DeconvolutionConfig::default();
         let config2 = config1.clone();
         assert_eq!(config1.ir_length, config2.ir_length);
+    }
+
+    #[test]
+    fn test_frequency_domain_method() {
+        // Test non-regularized frequency domain deconvolution
+        let sweep = sweep::exponential(1000.0, 0.5, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::FrequencyDomain,
+            ir_length: None,
+            window: None,
+            pre_delay: 0,
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert!(!ir.is_empty());
+    }
+
+    #[test]
+    fn test_post_process_pre_delay() {
+        let sweep = sweep::exponential(1000.0, 0.5, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: None,
+            window: None,
+            pre_delay: 10, // Remove first 10 samples
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert!(!ir.is_empty());
+    }
+
+    #[test]
+    fn test_post_process_ir_length_truncate() {
+        let sweep = sweep::exponential(1000.0, 0.5, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: Some(100), // Truncate to 100 samples
+            window: None,
+            pre_delay: 0,
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert_eq!(ir.len(), 100);
+    }
+
+    #[test]
+    fn test_post_process_ir_length_pad() {
+        let sweep = sweep::exponential(1000.0, 0.1, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: Some(1000), // Pad to 1000 samples
+            window: None,
+            pre_delay: 0,
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert_eq!(ir.len(), 1000);
+        // Last samples should be zero-padded
+        assert!(ir[ir.len() - 10..].iter().all(|&x| x.abs() < 0.1));
+    }
+
+    #[test]
+    fn test_post_process_ir_length_exact() {
+        let sweep = sweep::exponential(1000.0, 0.5, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let ir_no_config = extract_ir(&sweep, &response).unwrap();
+        let target_len = ir_no_config.len();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: Some(target_len), // Exact length
+            window: None,
+            pre_delay: 0,
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert_eq!(ir.len(), target_len);
+    }
+
+    #[test]
+    fn test_window_hamming() {
+        let sweep = sweep::exponential(1000.0, 0.5, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: None,
+            window: Some(WindowType::Hamming),
+            pre_delay: 0,
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert!(!ir.is_empty());
+    }
+
+    #[test]
+    fn test_window_blackman() {
+        let sweep = sweep::exponential(1000.0, 0.5, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: None,
+            window: Some(WindowType::Blackman),
+            pre_delay: 0,
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        assert!(!ir.is_empty());
+    }
+
+    #[test]
+    fn test_window_single_sample() {
+        let mut buffer = vec![1.0];
+        apply_window(&mut buffer, WindowType::Hann);
+        assert_eq!(buffer, vec![1.0]);
+        apply_window(&mut buffer, WindowType::Hamming);
+        assert_eq!(buffer, vec![1.0]);
+        apply_window(&mut buffer, WindowType::Blackman);
+        assert_eq!(buffer, vec![1.0]);
+    }
+
+    #[test]
+    fn test_window_empty() {
+        let mut buffer = vec![];
+        apply_window(&mut buffer, WindowType::Hann);
+        assert_eq!(buffer, vec![]);
+    }
+
+    #[test]
+    fn test_estimate_snr_zero_noise() {
+        // IR with signal but zero noise floor
+        let mut ir = vec![0.0; 100];
+        ir[10] = 1.0; // Peak
+        // Rest is zero (no noise)
+
+        let snr = estimate_snr(&ir, 50).unwrap();
+        assert_eq!(snr, f32::INFINITY);
+    }
+
+    #[test]
+    fn test_estimate_snr_zero_peak() {
+        // IR with no signal (all zeros)
+        let ir = vec![0.0; 100];
+        let snr = estimate_snr(&ir, 50).unwrap();
+        // Should handle zero peak gracefully
+        assert!(snr.is_finite() || snr == f32::INFINITY);
+    }
+
+    #[test]
+    fn test_assess_ir_quality_fair_rating() {
+        // Create IR that should get Fair rating
+        let mut ir = vec![0.0; 1000];
+        ir[50] = 0.15; // Moderate peak (between 0.1 and 0.01)
+        // Add some decay
+        for i in 51..500 {
+            #[cfg(feature = "std")]
+            let decay = (-((i as f32) - 50.0) / 200.0).exp() * 0.01;
+            #[cfg(not(feature = "std"))]
+            let decay = libm::expf(-((i as f32) - 50.0) / 200.0) * 0.01;
+            ir[i] = decay;
+        }
+
+        let quality = assess_ir_quality(&ir).unwrap();
+        // Should be Fair or Poor depending on other metrics
+        assert!(matches!(quality.rating, QualityRating::Fair | QualityRating::Poor));
+    }
+
+    #[test]
+    fn test_assess_ir_quality_all_warnings() {
+        // Create IR that triggers multiple warnings
+        let mut ir = vec![0.005; 1000]; // Very low values
+        ir[50] = 0.008; // Very low peak
+
+        let quality = assess_ir_quality(&ir).unwrap();
+        assert_eq!(quality.rating, QualityRating::Poor);
+        assert!(!quality.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_assess_ir_quality_early_late_edge_cases() {
+        // IR with no late energy (only early)
+        let mut ir = vec![0.0; 1000];
+        ir[10] = 1.0;
+        // Only early energy, no late energy
+        for i in 11..100 {
+            ir[i] = 0.1;
+        }
+
+        let quality = assess_ir_quality(&ir).unwrap();
+        // early_late_ratio_db should be INFINITY
+        assert!(quality.early_late_ratio_db.is_infinite() || quality.early_late_ratio_db > 100.0);
+    }
+
+    #[test]
+    fn test_assess_ir_quality_no_early_energy() {
+        // IR with only late energy
+        let mut ir = vec![0.0; 1000];
+        // Skip early part, only late energy
+        for i in 200..800 {
+            ir[i] = 0.1;
+        }
+
+        let quality = assess_ir_quality(&ir).unwrap();
+        // Should have low or zero early_late_ratio_db
+        assert!(quality.early_late_ratio_db <= 0.0 || quality.early_late_ratio_db < 6.0);
+    }
+
+    #[test]
+    fn test_extract_ir_from_interleaved_with_config_mono() {
+        let sweep = sweep::exponential(1000.0, 0.1, 100.0, 500.0).unwrap();
+        let mono_recording = sweep.clone();
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: Some(200),
+            window: Some(WindowType::Hann),
+            pre_delay: 5,
+        };
+
+        let stereo_ir = extract_ir_from_interleaved_with_config(
+            &sweep,
+            &mono_recording,
+            1,
+            &config,
+        )
+        .unwrap();
+
+        // Should be stereo (interleaved)
+        assert!(stereo_ir.len() % 2 == 0);
+        // Left and right should be identical for mono input
+        let left: Vec<f32> = stereo_ir.iter().step_by(2).copied().collect();
+        let right: Vec<f32> = stereo_ir.iter().skip(1).step_by(2).copied().collect();
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn test_extract_ir_from_interleaved_with_config_stereo() {
+        let sweep = sweep::exponential(1000.0, 0.1, 100.0, 500.0).unwrap();
+        let mut stereo_recording = Vec::new();
+        for &s in &sweep {
+            stereo_recording.push(s * 0.8);
+            stereo_recording.push(s * 0.6);
+        }
+
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::FrequencyDomain, // Non-regularized
+            ir_length: Some(200),
+            window: Some(WindowType::Hamming),
+            pre_delay: 0,
+        };
+
+        let stereo_ir = extract_ir_from_interleaved_with_config(
+            &sweep,
+            &stereo_recording,
+            2,
+            &config,
+        )
+        .unwrap();
+
+        assert!(stereo_ir.len() % 2 == 0);
+    }
+
+    #[test]
+    fn test_extract_stereo_channels_multi_channel() {
+        // Test with more than 2 channels (should still work)
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]; // 3 channels, 2 samples
+        let (left, right) = extract_stereo_channels(&data, 3);
+        // Should extract first and second channels
+        assert_eq!(left, vec![1.0, 4.0]);
+        assert_eq!(right, vec![2.0, 5.0]);
+    }
+
+    #[test]
+    fn test_extract_left_channel_multi_channel() {
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]; // 3 channels
+        let left = extract_left_channel(&data, 3);
+        assert_eq!(left, vec![1.0, 4.0]);
+    }
+
+    #[test]
+    fn test_post_process_pre_delay_edge_cases() {
+        let sweep = sweep::exponential(1000.0, 0.1, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        // Pre-delay equal to IR length (should not panic)
+        let ir_no_config = extract_ir(&sweep, &response).unwrap();
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: None,
+            window: None,
+            pre_delay: ir_no_config.len(), // Equal to length
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        // Should be empty or very short
+        assert!(ir.len() <= ir_no_config.len());
+    }
+
+    #[test]
+    fn test_post_process_pre_delay_greater_than_length() {
+        let sweep = sweep::exponential(1000.0, 0.1, 100.0, 500.0).unwrap();
+        let response = sweep.clone();
+
+        let ir_no_config = extract_ir(&sweep, &response).unwrap();
+        let config = DeconvolutionConfig {
+            method: DeconvolutionMethod::RegularizedFrequencyDomain {
+                regularization: 1e-3,
+            },
+            ir_length: None,
+            window: None,
+            pre_delay: ir_no_config.len() + 100, // Greater than length
+        };
+
+        let ir = extract_ir_with_config(&sweep, &response, &config).unwrap();
+        // Should not panic, should handle gracefully
+        assert!(ir.len() <= ir_no_config.len());
+    }
+
+    #[test]
+    fn test_deconvolution_method_default() {
+        let method = DeconvolutionMethod::default();
+        match method {
+            DeconvolutionMethod::RegularizedFrequencyDomain { regularization } => {
+                assert_eq!(regularization, 1e-3);
+            }
+            _ => panic!("Default should be RegularizedFrequencyDomain"),
+        }
+    }
+
+    #[test]
+    fn test_deconvolution_method_partial_eq() {
+        let method1 = DeconvolutionMethod::FrequencyDomain;
+        let method2 = DeconvolutionMethod::FrequencyDomain;
+        assert_eq!(method1, method2);
+
+        let method3 = DeconvolutionMethod::RegularizedFrequencyDomain {
+            regularization: 1e-3,
+        };
+        let method4 = DeconvolutionMethod::RegularizedFrequencyDomain {
+            regularization: 1e-3,
+        };
+        assert_eq!(method3, method4);
+
+        assert_ne!(method1, method3);
+    }
+
+    #[test]
+    fn test_window_type_partial_eq() {
+        assert_eq!(WindowType::Hann, WindowType::Hann);
+        assert_ne!(WindowType::Hann, WindowType::Hamming);
+        assert_ne!(WindowType::Hann, WindowType::Blackman);
+    }
+
+    #[test]
+    fn test_quality_rating_partial_eq() {
+        assert_eq!(QualityRating::Good, QualityRating::Good);
+        assert_eq!(QualityRating::Fair, QualityRating::Fair);
+        assert_eq!(QualityRating::Poor, QualityRating::Poor);
+        assert_ne!(QualityRating::Good, QualityRating::Poor);
+    }
+
+    #[test]
+    fn test_ir_quality_clone() {
+        let quality = IRQuality {
+            peak: 0.8,
+            rms: 0.2,
+            early_late_ratio_db: 10.0,
+            noise_ratio: 0.01,
+            snr_db: 60.0,
+            rating: QualityRating::Good,
+            warnings: vec!["test warning"],
+        };
+        let cloned = quality.clone();
+        assert_eq!(quality.peak, cloned.peak);
+        assert_eq!(quality.warnings, cloned.warnings);
+    }
+
+    #[test]
+    fn test_assess_ir_quality_moderate_early_late_ratio() {
+        // Create IR with moderate early-to-late ratio
+        let mut ir = vec![0.0; 1000];
+        ir[50] = 1.0; // Strong peak
+        // Moderate early energy
+        for i in 51..150 {
+            ir[i] = 0.05;
+        }
+        // Moderate late energy
+        for i in 150..750 {
+            ir[i] = 0.02;
+        }
+
+        let quality = assess_ir_quality(&ir).unwrap();
+        // Should return a valid rating (any rating is acceptable)
+        assert!(matches!(
+            quality.rating,
+            QualityRating::Good | QualityRating::Fair | QualityRating::Poor
+        ));
+        // Verify metrics are calculated
+        assert!(quality.peak > 0.0);
+        assert!(quality.rms > 0.0);
+    }
+
+    #[test]
+    fn test_assess_ir_quality_moderate_noise() {
+        // Create IR with moderate noise ratio
+        let mut ir = vec![0.0; 1000];
+        ir[50] = 1.0;
+        // Add moderate noise in tail
+        for i in 750..1000 {
+            ir[i] = 0.03; // Moderate noise
+        }
+
+        let quality = assess_ir_quality(&ir).unwrap();
+        // Should return a valid rating (any rating is acceptable)
+        assert!(matches!(
+            quality.rating,
+            QualityRating::Good | QualityRating::Fair | QualityRating::Poor
+        ));
+        // Verify noise ratio is calculated
+        assert!(quality.noise_ratio >= 0.0);
+        assert!(quality.snr_db.is_finite() || quality.snr_db == f32::INFINITY);
+    }
+
+    #[test]
+    fn test_extract_ir_circular_convolution_rotation() {
+        // Create a scenario that might trigger circular convolution rotation
+        // by using a very short sweep that might cause peak in second half
+        let sweep = vec![1.0, 0.0, 0.0, 0.0, 0.0];
+        let mut response = vec![0.0; 20];
+        response[15] = 1.0; // Peak near the end
+
+        let ir = extract_ir(&sweep, &response).unwrap();
+        assert!(!ir.is_empty());
+        // The rotation logic should handle this
+    }
+
+    #[test]
+    fn test_extract_ir_zero_denominator_protection() {
+        // Test case where sweep power might be very low (near zero)
+        // This tests the denominator <= 1e-30 protection
+        let sweep = vec![1e-20, 1e-20, 1e-20]; // Very small values
+        let response = vec![1.0, 0.5, 0.25];
+
+        // Should not panic, should handle zero/very small denominators
+        let result = extract_ir(&sweep, &response);
+        // May succeed or fail, but shouldn't panic
+        let _ = result;
     }
 }

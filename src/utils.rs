@@ -183,6 +183,20 @@ mod tests {
     use alloc::{format, vec, vec::Vec};
 
     #[test]
+    fn test_calculate_window_value_length_one() {
+        // Should always return 1.0 for any window type if length <= 1
+        for &window in &[
+            WindowFunction::Rectangular,
+            WindowFunction::Hann,
+            WindowFunction::Hamming,
+            WindowFunction::Blackman,
+        ] {
+            assert_abs_diff_eq!(calculate_window_value(window, 0, 1), 1.0, epsilon = 1e-6);
+            assert_abs_diff_eq!(calculate_window_value(window, 0, 0), 1.0, epsilon = 1e-6);
+        }
+    }
+
+    #[test]
     fn test_window_functions() {
         let length = 10;
         let hann = generate_window(length, WindowFunction::Hann);
