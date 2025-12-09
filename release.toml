@@ -5,7 +5,6 @@ allow-branch = ["main"]
 
 # Tagging
 tag = true
-tag-prefix = "v"
 tag-message = "Release {{version}}"
 
 # Push changes + tag

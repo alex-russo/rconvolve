@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   github-release:
     runs-on: ubuntu-latest
@@ -18,7 +21,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install git-cliff
-        run: cargo install git-cliff
+        run: |
+          CLIFF_VERSION=2.10.1
+          curl -sSL \
+            https://github.com/orhun/git-cliff/releases/download/v${CLIFF_VERSION}/git-cliff-${CLIFF_VERSION}-x86_64-unknown-linux-musl.tar.gz \
+            | tar -xz
+          sudo mv git-cliff*/git-cliff /usr/local/bin/
 
       - name: Generate release notes for this tag
         run: |
@@ -28,11 +36,9 @@ jobs:
       - name: Read release notes into variable
         id: notes
         run: |
-          NOTES=$(cat RELEASE_NOTES.md)
-          NOTES="${NOTES//'%'/'%25'}"
-          NOTES="${NOTES//$'\n'/'%0A'}"
-          NOTES="${NOTES//$'\r'/'%0D'}"
-          echo "notes=$NOTES" >> $GITHUB_OUTPUT
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          cat RELEASE_NOTES.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -40,5 +46,4 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body: ${{ steps.notes.outputs.notes }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ github.token }}

@@ -1,5 +1,8 @@
 # rconvolve
 
+[![Crates.io](https://img.shields.io/crates/v/rconvolve.svg)](https://crates.io/crates/rconvolve)
+[![Docs.rs](https://docs.rs/rconvolve/badge.svg)](https://docs.rs/rconvolve)
+
 Fast convolution and impulse response extraction for audio applications in Rust.
 
 ## Overview

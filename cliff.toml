@@ -25,7 +25,7 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | upper_first }}
     {% for commit in commits %}
-        - {{ commit.message | split(pat="\n") | first | upper_first | trim }} ([{{ commit.id | truncate(length=7, end="") }}]({{ commit.id }}))\
+        - {{ commit.message | split(pat="\n") | first | upper_first | trim }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/alex-russo/rconvolve/commit/{{ commit.id }}))\
           {% if commit.footers %}\
             {% for footer in commit.footers -%}
                 , {{ footer.token }}{{ footer.separator }}{{ footer.value }}\
@@ -59,11 +59,21 @@ commit_parsers = [
     { message = "^refactor", group = "Refactor" },
     { message = "^style", group = "Styling" },
     { message = "^test", group = "Testing" },
+
+    # Skip dependency bumps
     { message = "^chore\\(deps.*\\)", skip = true },
+
+    # Skip PR/pull auto commits
     { message = "^chore\\(pr\\)", skip = true },
     { message = "^chore\\(pull\\)", skip = true },
-    { message = "^chore\\(release\\): prepare for", skip = true },
+
+    # Skip all release-prep commits
+    { message = "^chore\\(release\\)", skip = true },
+
+    # Miscellaneous
     { message = "^chore|^ci", group = "Miscellaneous Tasks" },
+
+    # Security
     { body = ".*security", group = "Security" },
 ]
 # Exclude commits that are not matched by any commit parser.
