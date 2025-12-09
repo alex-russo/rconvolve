@@ -26,12 +26,10 @@ use std::sync::Arc;
 /// ```rust
 /// use rconvolve::convolve;
 ///
-/// let config = convolve::ConvolutionConfig {
-///     normalize: false,
-///     trim_to_input: true,  // Trim output to match input length
-///     wet_level: 0.5,       // 50% wet signal
-///     gain: 1.0,
-/// };
+/// let dry_audio = vec![1.0, 0.0, 0.0, 0.0];
+/// let impulse_response = vec![0.5, 0.3, 0.1];
+/// let wet_audio = convolve::apply_ir(&dry_audio, &impulse_response).unwrap();
+/// assert_eq!(wet_audio.len(), dry_audio.len() + impulse_response.len() - 1);
 /// ```
 #[derive(Debug, Clone)]
 pub struct ConvolutionConfig {
@@ -257,18 +255,11 @@ pub fn time_convolve(signal: &[Sample], kernel: &[Sample]) -> AudioResult<AudioB
 /// ```rust
 /// use rconvolve::convolve::PartitionedConvolution;
 ///
-/// let impulse_response = vec![1.0, 0.5, 0.25];
-/// let block_size = 4;
-///
-/// let mut processor =
-///     PartitionedConvolution::new(impulse_response.clone(), block_size, None).unwrap();
-///
-/// // Process audio blocks
-/// let input_block = vec![0.0; block_size];
-/// let _output = processor.process_block(&input_block).unwrap();
-///
-/// // Reset state when needed
-/// processor.reset();
+/// let impulse_response = vec![0.5, 0.3, 0.1];
+/// let input_block = vec![1.0; 512];
+/// let mut processor = PartitionedConvolution::new(impulse_response, 512, None).unwrap();
+/// let output = processor.process_block(&input_block).unwrap();
+/// assert_eq!(output.len(), input_block.len());
 /// ```
 pub struct PartitionedConvolution {
     /// FFT'd partitions of the impulse response (hermitian symmetric format from real FFT)

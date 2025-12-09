@@ -109,15 +109,14 @@ pub enum WindowType {
 /// ```rust
 /// use rconvolve::{sweep, deconvolve};
 ///
-/// // Generate reference sweep
 /// let sweep_signal = sweep::exponential(48000.0, 2.0, 20.0, 20000.0).unwrap();
-///
-/// // Simulate recorded response (copy of sweep for demo)
-/// let recorded_response = sweep_signal.clone();
-///
-/// // Extract IR
-/// let ir = deconvolve::extract_ir(&sweep_signal, &recorded_response).unwrap();
-/// let _ = ir;
+/// let recorded_response = vec![0.0; 96000]; // Your recorded sweep response
+/// let config = deconvolve::DeconvolutionConfig {
+///     ir_length: Some(sweep_signal.len()),
+///     ..Default::default()
+/// };
+/// let ir = deconvolve::extract_ir_with_config(&sweep_signal, &recorded_response, &config).unwrap();
+/// assert_eq!(ir.len(), sweep_signal.len());
 /// ```
 pub fn extract_ir(
     original_sweep: &[Sample],

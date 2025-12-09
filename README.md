@@ -38,38 +38,15 @@ rconvolve = "*"
 
 ### Batch Convolution
 
-```rust,ignore
-use rconvolve::convolve;
-
-let dry_audio = vec![1.0, 0.0, 0.0, 0.0];
-let impulse_response = vec![0.5, 0.3, 0.1];
-
-let wet_audio = convolve::apply_ir(&dry_audio, &impulse_response)?;
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
+See the example in the [rconvolve::convolve module documentation](https://docs.rs/rconvolve/latest/rconvolve/convolve/index.html).
 
 ### Real-Time Convolution
 
-```rust,ignore
-use rconvolve::convolve::PartitionedConvolution;
-
-let impulse_response = vec![0.5, 0.3, 0.1];
-let input_block = vec![1.0; 512];
-let mut processor = PartitionedConvolution::new(impulse_response, 512, None)?;
-let output = processor.process_block(&input_block)?;
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
+See the example in the [rconvolve::convolve::PartitionedConvolution documentation](https://docs.rs/rconvolve/latest/rconvolve/convolve/struct.PartitionedConvolution.html).
 
 ### Impulse Response Extraction
 
-```rust,ignore
-use rconvolve::{sweep, deconvolve};
-
-let sweep_signal = sweep::exponential(48000.0, 2.0, 20.0, 20000.0)?;
-let recorded_response = vec![0.0; 96000]; // Your recorded sweep response
-let ir = deconvolve::extract_ir(&sweep_signal, &recorded_response)?;
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
+See the example in the [rconvolve::deconvolve module documentation](https://docs.rs/rconvolve/latest/rconvolve/deconvolve/index.html).
 
 ## Examples
 
