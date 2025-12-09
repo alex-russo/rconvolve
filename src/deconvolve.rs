@@ -947,7 +947,6 @@ mod tests {
         assert_eq!(stereo, vec![0.0, 3.0, 0.0, 4.0]);
     }
 
-
     #[test]
     fn test_snr_estimation() {
         // Create a test IR with known SNR characteristics
@@ -979,7 +978,7 @@ mod tests {
         // Create a high-quality test IR
         let mut good_ir = vec![0.0; 1000];
         good_ir[50] = 1.0; // Strong peak
-                        // Add much weaker exponential decay for better dynamic range
+                           // Add much weaker exponential decay for better dynamic range
         for i in 51..700 {
             // End decay earlier to leave quiet tail
             #[cfg(feature = "std")]
@@ -1340,7 +1339,7 @@ mod tests {
         // IR with signal but zero noise floor
         let mut ir = vec![0.0; 100];
         ir[10] = 1.0; // Peak
-        // Rest is zero (no noise)
+                      // Rest is zero (no noise)
 
         let snr = estimate_snr(&ir, 50).unwrap();
         assert_eq!(snr, f32::INFINITY);
@@ -1360,7 +1359,7 @@ mod tests {
         // Create IR that should get Fair rating
         let mut ir = vec![0.0; 1000];
         ir[50] = 0.15; // Moderate peak (between 0.1 and 0.01)
-        // Add some decay
+                       // Add some decay
         for i in 51..500 {
             #[cfg(feature = "std")]
             let decay = (-((i as f32) - 50.0) / 200.0).exp() * 0.01;
@@ -1371,7 +1370,10 @@ mod tests {
 
         let quality = assess_ir_quality(&ir).unwrap();
         // Should be Fair or Poor depending on other metrics
-        assert!(matches!(quality.rating, QualityRating::Fair | QualityRating::Poor));
+        assert!(matches!(
+            quality.rating,
+            QualityRating::Fair | QualityRating::Poor
+        ));
     }
 
     #[test]
@@ -1428,13 +1430,8 @@ mod tests {
             pre_delay: 5,
         };
 
-        let stereo_ir = extract_ir_from_interleaved_with_config(
-            &sweep,
-            &mono_recording,
-            1,
-            &config,
-        )
-        .unwrap();
+        let stereo_ir =
+            extract_ir_from_interleaved_with_config(&sweep, &mono_recording, 1, &config).unwrap();
 
         // Should be stereo (interleaved)
         assert!(stereo_ir.len() % 2 == 0);
@@ -1460,13 +1457,8 @@ mod tests {
             pre_delay: 0,
         };
 
-        let stereo_ir = extract_ir_from_interleaved_with_config(
-            &sweep,
-            &stereo_recording,
-            2,
-            &config,
-        )
-        .unwrap();
+        let stereo_ir =
+            extract_ir_from_interleaved_with_config(&sweep, &stereo_recording, 2, &config).unwrap();
 
         assert!(stereo_ir.len() % 2 == 0);
     }
@@ -1593,7 +1585,7 @@ mod tests {
         // Create IR with moderate early-to-late ratio
         let mut ir = vec![0.0; 1000];
         ir[50] = 1.0; // Strong peak
-        // Moderate early energy
+                      // Moderate early energy
         for i in 51..150 {
             ir[i] = 0.05;
         }

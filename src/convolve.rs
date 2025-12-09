@@ -1201,8 +1201,7 @@ mod tests {
         let ir_rl = vec![0.2];
         let ir_rr = vec![1.0];
         let block_size = 4;
-        let mut proc =
-            TrueStereoConvolution::new(ir_ll, ir_lr, ir_rl, ir_rr, block_size).unwrap();
+        let mut proc = TrueStereoConvolution::new(ir_ll, ir_lr, ir_rl, ir_rr, block_size).unwrap();
         let interleaved_wrong = vec![0.0; block_size * 2 - 1];
         let result = proc.process_interleaved(&interleaved_wrong);
         assert!(matches!(result, Err(AudioError::BufferSizeMismatch)));
@@ -1265,8 +1264,7 @@ mod tests {
         let ir_rl = vec![0.0];
         let ir_rr = vec![1.0];
         let block_size = 2;
-        let mut proc =
-            TrueStereoConvolution::new(ir_ll, ir_lr, ir_rl, ir_rr, block_size).unwrap();
+        let mut proc = TrueStereoConvolution::new(ir_ll, ir_lr, ir_rl, ir_rr, block_size).unwrap();
         let interleaved = vec![1.0, 0.5, 0.0, 0.0]; // L0, R0, L1, R1
         let output = proc.process_interleaved(&interleaved).unwrap();
         assert_eq!(output.len(), block_size * 2);

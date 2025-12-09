@@ -1,5 +1,30 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_wasmsweepgenerator_free: (a: number, b: number) => void;
+export const wasmsweepgenerator_exponential: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const __wbg_wasmirprocessor_free: (a: number, b: number) => void;
+export const wasmirprocessor_new: (a: any) => number;
+export const wasmirprocessor_extract_impulse_response_advanced: (a: number, b: any, c: number, d: number) => [number, number, number];
+export const __wbg_wasmconvolutionprocessor_free: (a: number, b: number) => void;
+export const wasmconvolutionprocessor_new: (a: any, b: number) => [number, number, number];
+export const wasmconvolutionprocessor_process_block: (a: number, b: any) => [number, number, number];
+export const wasmconvolutionprocessor_reset: (a: number) => void;
+export const convolve_audio: (a: any, b: any) => [number, number, number];
+export const __wbg_wasmstereoconvolutionprocessor_free: (a: number, b: number) => void;
+export const wasmstereoconvolutionprocessor_new: (a: any, b: any, c: number) => [number, number, number];
+export const wasmstereoconvolutionprocessor_from_mono: (a: any, b: number) => [number, number, number];
+export const wasmstereoconvolutionprocessor_process_block: (a: number, b: any, c: any) => [number, number, number];
+export const wasmstereoconvolutionprocessor_process_interleaved: (a: number, b: any) => [number, number, number];
+export const wasmstereoconvolutionprocessor_reset: (a: number) => void;
+export const __wbg_wasmtruestereoconvolutionprocessor_free: (a: number, b: number) => void;
+export const wasmtruestereoconvolutionprocessor_new: (a: any, b: any, c: any, d: any, e: number) => [number, number, number];
+export const wasmtruestereoconvolutionprocessor_from_stereo_with_crossfeed: (a: any, b: any, c: number, d: number, e: number) => [number, number, number];
+export const wasmtruestereoconvolutionprocessor_from_mono_with_spread: (a: any, b: number, c: number) => [number, number, number];
+export const wasmtruestereoconvolutionprocessor_process_block: (a: number, b: any, c: any) => [number, number, number];
+export const wasmtruestereoconvolutionprocessor_process_interleaved: (a: number, b: any) => [number, number, number];
+export const wasmtruestereoconvolutionprocessor_reset: (a: number) => void;
+export const stereo_convolve_audio: (a: any, b: any, c: any, d: any) => [number, number, number];
 export const __wbindgen_export_0: WebAssembly.Table;
+export const __externref_table_dealloc: (a: number) => void;
 export const __wbindgen_start: () => void;
