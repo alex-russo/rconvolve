@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rconvolve Hall Measurement</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="header">
+        <h1>rconvolve Hall Measurement</h1>
+        <p>End-to-end workflow: Generate, extract, and test impulse responses live</p>
+        <div id="wasmStatus" class="status">Loading WASM...</div>
+    </div>
+
+    <div class="section">
+        <h2>🎼 Generate Test Sweep</h2>
+        <div class="controls">
+            <label>Sample Rate:</label>
+            <select id="sampleRate">
+                <option value="44100">44.1 kHz</option>
+                <option value="48000" selected>48 kHz</option>
+                <option value="96000">96 kHz</option>
+            </select>
+
+            <label>Duration:</label>
+            <input type="number" id="duration" value="2.0" step="0.1" min="0.5" max="10">s
+
+            <label>Start Freq:</label>
+            <input type="number" id="startFreq" value="20" min="10" max="1000">Hz
+
+            <label>End Freq:</label>
+            <input type="number" id="endFreq" value="20000" min="1000" max="24000">Hz
+        </div>
+
+        <button onclick="generateSweep()" id="generateBtn">Generate & Preview Sweep</button>
+        <button onclick="downloadSweep()" id="downloadSweepBtn" disabled>💾 Download Sweep WAV</button>
+
+        <div id="sweepOutput" class="output"></div>
+        <canvas id="sweepCanvas" width="700" height="150"></canvas>
+    </div>
+
+    <div class="section">
+        <h2>🎙️ Record Audio</h2>
+        <p>Play the sweep through your output device and record the response through your input device.</p>
+
+        <div class="controls">
+            <label>Audio Input:</label>
+            <select id="audioInput">
+                <option value="">Select input device...</option>
+            </select>
+
+            <label>Audio Output:</label>
+            <select id="audioOutput">
+                <option value="">Select output device...</option>
+            </select>
+
+            <button onclick="refreshAudioDevices()" class="preset-btn">🔄 Refresh</button>
+        </div>
+
+        <div class="controls">
+            <label>Recording Duration:</label>
+            <input type="number" id="recordDuration" value="5" step="0.5" min="1" max="30">s
+
+            <label>Channel:</label>
+            <select id="recordingChannel">
+                <option value="stereo" selected>Stereo (True Stereo IR)</option>
+                <option value="left">Left Only</option>
+                <option value="right">Right Only</option>
+                <option value="mix">Mix (L+R → Mono)</option>
+            </select>
+
+            <label>
+                <input type="checkbox" id="playSweepWhileRecording" checked>
+                Play sweep while recording
+            </label>
+        </div>
+
+        <button onclick="startRecording()" id="recordBtn" disabled>🔴 Start Recording</button>
+        <button onclick="stopRecording()" id="stopRecordBtn" disabled>⏹️ Stop Recording</button>
+        <button onclick="useRecordedAudio()" id="useRecordedBtn" disabled>📤 Load for IR Extraction</button>
+        <button onclick="downloadRecording()" id="downloadRecordingBtn" disabled>💾 Download Recording WAV</button>
+
+        <div id="recordOutput" class="output"></div>
+        <canvas id="recordCanvas" width="700" height="150"></canvas>
+    </div>
+
+    <div class="section">
+        <h2>📁 Load Recorded Sweep</h2>
+        <div class="controls">
+            <label>
+                <input type="checkbox" id="useSweepSettings" checked onchange="toggleSweepSettings()">
+                Use sweep generator settings
+            </label>
+        </div>
+
+        <div id="customSweepSettings" style="display: none;">
+            <p><strong>Custom Sweep Settings:</strong></p>
+            <div class="controls">
+                <label>Sample Rate:</label>
+                <select id="recordedSampleRate">
+                    <option value="44100">44.1 kHz</option>
+                    <option value="48000" selected>48 kHz</option>
+                    <option value="96000">96 kHz</option>
+                </select>
+
+                <label>Duration:</label>
+                <input type="number" id="recordedDuration" value="2.0" step="0.1" min="0.5" max="10">s
+
+                <label>Start Freq:</label>
+                <input type="number" id="recordedStartFreq" value="20" min="10" max="1000">Hz
+
+                <label>End Freq:</label>
+                <input type="number" id="recordedEndFreq" value="20000" min="1000" max="24000">Hz
+            </div>
+        </div>
+
+        <p>Upload your WAV file recorded with the above sweep settings:</p>
+
+        <div class="file-input">
+            <input type="file" id="fileInput" accept=".wav" onchange="handleFileUpload(event)">
+            <p>Choose your recorded sweep WAV file</p>
+        </div>
+
+        <div id="fileOutput" class="output"></div>
+        <canvas id="fileCanvas" width="700" height="150"></canvas>
+    </div>
+
+    <div class="section">
+        <h2>🔬 Extract Impulse Response</h2>
+        <div class="controls">
+            <label>IR Length:</label>
+            <input type="number" id="irLength" value="2.0" step="0.1" min="0.5" max="10">s
+
+            <label>Regularization:</label>
+            <input type="number" id="regularization" value="0.001" step="0.001" min="0" max="0.1">
+
+            <button onclick="setRegularization(0.0001)" class="preset-btn">Low</button>
+            <button onclick="setRegularization(0.001)" class="preset-btn">Med</button>
+            <button onclick="setRegularization(0.01)" class="preset-btn">High</button>
+        </div>
+
+        <button onclick="extractIR()" id="extractBtn" disabled>Extract Impulse Response</button>
+        <button onclick="previewIR()" id="previewBtn" disabled>🎧 Preview IR</button>
+        <button onclick="downloadIR()" id="downloadBtn" disabled>💾 Download IR WAV</button>
+
+        <div id="irOutput" class="output"></div>
+        <canvas id="irCanvas" width="700" height="150"></canvas>
+    </div>
+
+    <div class="section">
+        <h2>🎛️ Real-Time Convolution</h2>
+        <p>Apply the extracted impulse response to a live audio stream in real-time.</p>
+
+        <div class="controls">
+            <label>Audio Input:</label>
+            <select id="realtimeInput">
+                <option value="">Select input device...</option>
+            </select>
+
+            <label>Audio Output:</label>
+            <select id="realtimeOutput">
+                <option value="">Select output device...</option>
+            </select>
+
+            <button onclick="refreshRealtimeDevices()" class="preset-btn">🔄 Refresh</button>
+        </div>
+
+        <div class="controls">
+            <label>Impulse Response:</label>
+            <span id="currentIRInfo" style="color: #888; font-size: 0.9em;">None loaded</span>
+            <input type="file" id="loadIRFile" accept=".wav,audio/*" style="display: none;"
+                onchange="loadExternalIR(event)">
+            <button onclick="document.getElementById('loadIRFile').click()" class="preset-btn">📂 Load IR File</button>
+            <button onclick="loadDemoIR()" class="preset-btn">🎵 Load Demo IR</button>
+            <button onclick="useExtractedIR()" class="preset-btn" id="useExtractedBtn" disabled>🎯 Use Extracted
+                IR</button>
+        </div>
+
+        <div class="controls">
+            <label>Block Size:</label>
+            <select id="blockSize">
+                <option value="256">256 (lowest latency)</option>
+                <option value="512">512</option>
+                <option value="1024" selected>1024 (balanced)</option>
+                <option value="2048">2048</option>
+                <option value="4096">4096 (best quality)</option>
+            </select>
+
+            <label>Dry/Wet Mix:</label>
+            <input type="range" id="dryWetMix" min="0" max="100" value="100" style="width: 100px;">
+            <span id="dryWetValue">100%</span>
+
+            <label>Output Gain:</label>
+            <input type="range" id="outputGain" min="0" max="200" value="100" style="width: 100px;">
+            <span id="gainValue">100%</span>
+        </div>
+
+        <div class="controls">
+            <label>Stereo Mode:</label>
+            <select id="stereoMode" onchange="updateStereoModeUI()">
+                <option value="mono">Mono</option>
+                <option value="stereo" selected>Stereo (use IR channels as-is)</option>
+                <option value="stereoSpread">Stereo + Spread (mono IR → stereo output)</option>
+            </select>
+
+            <span id="stereoSpreadControls">
+                <label>Stereo Spread:</label>
+                <input type="range" id="stereoSpread" min="0" max="100" value="50" style="width: 100px;">
+                <span id="stereoSpreadValue">50%</span>
+                <span style="color: #888; font-size: 0.85em; margin-left: 5px;">(synthetic width from mono IR)</span>
+            </span>
+        </div>
+
+        <button onclick="startRealTimeConvolution()" id="startConvBtn" disabled>▶️ Start Real-Time Processing</button>
+        <button onclick="stopRealTimeConvolution()" id="stopConvBtn" disabled>⏹️ Stop</button>
+
+        <div id="realtimeStatus" class="output"></div>
+        <canvas id="realtimeCanvas" width="700" height="100"></canvas>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

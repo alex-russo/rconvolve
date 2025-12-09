@@ -1,0 +1,45 @@
+# cargo-release configuration
+# https://github.com/crate-ci/cargo-release
+
+allow-branch = ["main"]
+
+# Tagging
+tag = true
+tag-prefix = "v"
+tag-message = "Release {{version}}"
+
+# Push changes + tag
+push = true
+
+# Publish to crates.io
+publish = true
+
+# Verify before publish
+verify = true
+
+# Consolidate changelog + version bump into one commit
+consolidate-commits = true
+
+# Update dependent workspace crates
+dependent-version = "upgrade"
+shared-version = true
+
+# Commit message for version bump
+pre-release-commit-message = "chore(release): prepare {{version}}"
+
+# -------------------------
+# Changelog integration
+# -------------------------
+
+# Generate the changelog for this release BEFORE committing/tagging
+pre-release-hook = [
+    "git-cliff",
+    "--unreleased",
+    "--tag",
+    "{{version}}",
+    "--output",
+    "CHANGELOG.md"
+]
+
+# Remove deprecated fields:
+# - sign-commit, sign-tag (use git config if needed)

@@ -1,0 +1,59 @@
+[package]
+name = "rconvolve"
+version = "0.1.0"
+edition = "2021"
+authors = ["Alex Russo <alex@alexrusso.me>"]
+license = "MIT OR Apache-2.0"
+description = "Fast convolution and impulse-response extraction for audio applications"
+homepage = "https://github.com/alex-russo/rconvolve"
+repository = "https://github.com/alex-russo/rconvolve"
+keywords = ["audio", "dsp", "convolution", "reverb", "impulse-response"]
+categories = ["multimedia::audio", "science", "no-std"]
+readme = "README.md"
+
+[dependencies]
+rustfft = { version = "6.1", default-features = false }
+realfft = { version = "3.3", default-features = false }
+num-complex = { version = "0.4", default-features = false }
+libm = "0.2"
+
+# WASM dependencies (optional)
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
+[features]
+default = ["std"]
+std = ["num-complex/std"]
+wasm = ["wasm-bindgen", "js-sys"]
+
+[dev-dependencies]
+approx = "0.5"
+anyhow = "1.0"
+clap = "4.0"
+hound = "3.5"
+cpal = "0.15"
+ringbuf = "0.4"
+rand = "0.8"
+
+[[example]]
+name = "simple_wav_to_ir"
+required-features = ["std"]
+
+[[example]]
+name = "apply_reverb"
+required-features = ["std"]
+
+[[example]]
+name = "realtime_reverb"
+required-features = ["std"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[lib]
+crate-type = ["cdylib", "rlib"]

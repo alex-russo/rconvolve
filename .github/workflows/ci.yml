@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, nightly]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- Dependencies (ALSA) ----
+      - name: Install Linux Deps
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      # ---- Rust Toolchain ----
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      # ---- Cache ----
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # ---- Formatting ----
+      - name: rustfmt
+        run: cargo fmt -- --check
+
+      # ---- Clippy ----
+      - name: Clippy (default features)
+        run: cargo clippy -- -D warnings
+
+      - name: Clippy (no default features)
+        run: cargo clippy --no-default-features -- -D warnings
+
+      # ---- Tests ----
+      - name: Test (default features)
+        run: cargo test --all --quiet
+
+      - name: Test (no default features)
+        run: cargo test --no-default-features --lib --quiet
+
+      - name: Doc tests
+        run: cargo test --doc --quiet
+
+      # ---- Build ----
+      - name: Build release
+        run: cargo build --release
+
+      - name: Build docs
+        run: cargo doc --no-deps --document-private-items
+
+      # ---- Publish dry run (stable only) ----
+      - name: Cargo publish dry-run
+        if: matrix.toolchain == 'stable'
+        run: cargo publish --dry-run
+
+      # ---- WASM Build (stable only) ----
+      - name: Build WASM
+        if: matrix.toolchain == 'stable'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo build --target wasm32-unknown-unknown --features wasm --no-default-features

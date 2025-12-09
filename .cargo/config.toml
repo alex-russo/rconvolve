@@ -1,0 +1,9 @@
+# Use native CPU features for optimal performance on non-WASM targets
+# This enables SIMD optimizations like NEON on Apple Silicon
+[target.'cfg(not(target_arch = "wasm32"))']
+rustflags = ["-C", "target-cpu=native"]
+
+[profile.release]
+# Additional optimizations for release builds
+lto = true           # Link-time optimization
+codegen-units = 1    # Better optimization at cost of compile time
